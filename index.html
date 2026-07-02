@@ -25,26 +25,34 @@
             transform: translateX(-50%) scale(0.95);
         }
     </style>
+    
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.150.1/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.150.1/examples/jsm/"
+            }
+        }
+    </script>
 </head>
 <body>
     <button id="jumpBtn">JUMP!</button>
 
     <script type="module">
-        import * as THREE from 'https://unpkg.com/three@0.150.1/build/three.module.js';
-        // ★ 1. GLTFLoader 대신 FBXLoader를 불러옵니다.
-        import { FBXLoader } from 'https://unpkg.com/three@0.150.1/examples/jsm/loaders/FBXLoader.js';
+        // Import Map을 적용하여 훨씬 깔끔해진 라이브러리 호출 방식
+        import * as THREE from 'three';
+        import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x87CEEB);
 
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 2, 5); // 카메라 위치 (북극곰을 정면에서 바라봄)
+        camera.position.set(0, 2, 5);
 
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(renderer.domElement);
 
-        // 조명 (FBX 모델의 질감과 그림자를 위해 약간 더 밝게 설정)
         const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 1);
         hemiLight.position.set(0, 20, 0);
         scene.add(hemiLight);
@@ -56,37 +64,33 @@
         let mixer;
         let jumpAction;
 
-        // ★ 2. FBXLoader로 Jump.fbx 파일 불러오기
         const loader = new FBXLoader();
         loader.load('Jump.fbx', function (object) {
             
-            // ★ 3. FBX 파일 크기 조정 (중요)
-            // Mixamo 등에서 받은 FBX는 크기가 엄청나게 클 수 있습니다. 화면에 안 보인다면 배율을 줄여줍니다.
+            // FBX 크기 축소
             object.scale.set(0.01, 0.01, 0.01); 
+            
+            // 모델이 너무 위에 떠 있다면 이 값을 조절 (예: 0, -1, 0)
+            object.position.set(0, -1, 0); 
             
             scene.add(object);
 
             mixer = new THREE.AnimationMixer(object);
 
-            // FBX 파일 안에 있는 애니메이션 가져오기
             if (object.animations && object.animations.length > 0) {
-                jumpAction = mixer.clipAction(object.animations[0]); // 점프 동작 할당
-                
-                // 딱 1번만 재생되고, 마지막 프레임에서 멈추도록 설정
+                jumpAction = mixer.clipAction(object.animations[0]);
                 jumpAction.setLoop(THREE.LoopOnce, 1);
                 jumpAction.clampWhenFinished = true;
             }
         });
 
-        // ★ 4. 버튼 클릭 이벤트
         document.getElementById('jumpBtn').addEventListener('click', () => {
             if (jumpAction) {
-                jumpAction.reset(); // 애니메이션을 처음 상태로 되돌림
-                jumpAction.play();  // 점프 실행!
+                jumpAction.reset();
+                jumpAction.play();
             }
         });
 
-        // 애니메이션 루프 (매 프레임 화면 업데이트)
         const clock = new THREE.Clock();
         function animate() {
             requestAnimationFrame(animate);
