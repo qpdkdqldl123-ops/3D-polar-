@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>점프하는 북극곰 (FBX)</title>
+    <title>점프하는 북극곰 (이벤트 추가)</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #87CEEB; }
         #jumpBtn {
@@ -59,7 +59,7 @@
         scene.background = new THREE.Color(0x87CEEB);
 
         const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 3, 10); // 카메라를 약간 뒤로 뺌
+        camera.position.set(0, 4, 11); // 빙하를 더 잘 보기 위해 카메라를 살짝 뒤/위로 조정
 
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
@@ -78,28 +78,65 @@
         dirLight.position.set(5, 10, 5);
         scene.add(dirLight);
 
+        // --- 기능 확장을 위한 전역 변수 선언 ---
         let mixer;
         let jumpAction;
+        let clickCount = 0; // 버튼 클릭 횟수 체크
+        let bearHeight = 0;
+        let bearWidth = 0;
+
+        // 피 효과를 위한 변수
+        let bloodHead;
+        let bloodHandL, bloodHandR;
+        let isBleedingHead = false;
+        let isBleedingHands = false;
+
+        // 빙하 효과를 위한 변수
+        let glaciers = [];
+        let glaciersActive = false;
+        let glacierHit = false;
 
         // 3. FBX 모델 불러오기 및 자동 크기 조절
         const loader = new FBXLoader();
         loader.load('Jump.fbx', function (object) {
             
-            // ★ 핵심: 모델의 실제 크기를 측정해서 화면에 딱 맞게 자동 조절하는 마법의 코드
             const box = new THREE.Box3().setFromObject(object);
             const size = box.getSize(new THREE.Vector3());
             
-            // 모델의 가장 긴 쪽의 길이가 4가 되도록 비율을 맞춤
             const maxDim = Math.max(size.x, size.y, size.z);
             const scale = 4 / maxDim;
             object.scale.set(scale, scale, scale);
             
-            // 크기 조절 후, 발바닥이 바닥(y=0)에 닿도록 위치 다시 잡기
             const newBox = new THREE.Box3().setFromObject(object);
             const center = newBox.getCenter(new THREE.Vector3());
             object.position.set(-center.x, -newBox.min.y, -center.z);
 
             scene.add(object);
+
+            // 모델 크기 기반으로 이펙트 위치 잡기 위해 크기 저장
+            bearHeight = newBox.max.y - newBox.min.y;
+            bearWidth = newBox.max.x - newBox.min.x;
+
+            // [이펙트 생성] 피(Blood) 메쉬 생성 및 배치
+            const bloodMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+            
+            // 머리 피 (곰 머리 위쪽 좌표 계산)
+            const headGeo = new THREE.SphereGeometry(0.3, 16, 16);
+            bloodHead = new THREE.Mesh(headGeo, bloodMat);
+            bloodHead.position.set(0, bearHeight * 0.85, bearHeight * 0.1);
+            bloodHead.scale.set(0, 0, 0); // 처음엔 크기 0
+            scene.add(bloodHead);
+
+            // 양 손 피 (앞쪽 양옆 좌표 계산)
+            const handGeo = new THREE.SphereGeometry(0.2, 16, 16);
+            bloodHandL = new THREE.Mesh(handGeo, bloodMat);
+            bloodHandR = new THREE.Mesh(handGeo, bloodMat);
+            bloodHandL.position.set(-bearWidth * 0.25, bearHeight * 0.35, bearHeight * 0.3);
+            bloodHandR.position.set(bearWidth * 0.25, bearHeight * 0.35, bearHeight * 0.3);
+            bloodHandL.scale.set(0, 0, 0);
+            bloodHandR.scale.set(0, 0, 0);
+            scene.add(bloodHandL);
+            scene.add(bloodHandR);
 
             // 애니메이션 설정
             mixer = new THREE.AnimationMixer(object);
@@ -109,17 +146,60 @@
                 jumpAction.clampWhenFinished = true;
             }
 
-            // 로딩이 끝나면 '부르는 중' 글자를 숨기고 JUMP 버튼을 표시
             document.getElementById('loading').style.display = 'none';
             document.getElementById('jumpBtn').style.display = 'block';
             
         });
 
-        // 4. 점프 버튼 클릭 이벤트
+        // 빙하 무리 생성 함수
+        function spawnGlaciers() {
+            // 기존에 남아있던 빙하가 있다면 제거
+            glaciers.forEach(g => scene.remove(g));
+            glaciers = [];
+
+            const glacierMat = new THREE.MeshStandardMaterial({ color: 0xe0ffff, roughness: 0.2, flatShading: true });
+            const glacierGeo = new THREE.IcosahedronGeometry(0.6, 0); // 각진 빙하 모양
+
+            const count = 6; // 날아올 빙하 개수
+            const radius = 15; // 생성될 원의 반지름 (멀리서 생성)
+
+            for (let i = 0; i < count; i++) {
+                const angle = (i / count) * Math.PI * 2;
+                const glacier = new THREE.Mesh(glacierGeo, glacierMat);
+                
+                // 북극곰을 중심으로 원형 배열
+                glacier.position.x = Math.cos(angle) * radius;
+                glacier.position.z = Math.sin(angle) * radius;
+                glacier.position.y = bearHeight * 0.4; // 북극곰 몸통 높이 맞춤
+
+                scene.add(glacier);
+                glaciers.push(glacier);
+            }
+            glaciersActive = true;
+            glacierHit = false;
+        }
+
+        // 4. 점프 버튼 클릭 이벤트 핸들러 변경
         document.getElementById('jumpBtn').addEventListener('click', () => {
-            if (jumpAction) {
-                jumpAction.reset();
-                jumpAction.play();
+            clickCount++;
+
+            if (clickCount === 1) {
+                // 1번째 클릭: 머리에 피가 점점 차오름 + 점프
+                isBleedingHead = true;
+                if (jumpAction) {
+                    jumpAction.reset().play();
+                }
+            } 
+            else if (clickCount === 2) {
+                // 2번째 클릭: 손에 피가 남 + 점프
+                isBleedingHands = true;
+                if (jumpAction) {
+                    jumpAction.reset().play();
+                }
+            } 
+            else if (clickCount >= 3) {
+                // 3번째 클릭 이후: 가만히 있다가 빙하가 날아옴 (충돌 시 점프)
+                spawnGlaciers();
             }
         });
 
@@ -129,6 +209,55 @@
             requestAnimationFrame(animate);
             const delta = clock.getDelta();
             if (mixer) mixer.update(delta);
+
+            // [실시간 연출 1] 머리 피 증가 애니메이션
+            if (isBleedingHead && bloodHead) {
+                if (bloodHead.scale.x < 2.0) { // 원하는 최대 크기까지 서서히 증가
+                    bloodHead.scale.addScalar(delta * 0.6);
+                }
+            }
+
+            // [실시간 연출 2] 손 피 증가 애니메이션
+            if (isBleedingHands && bloodHandL && bloodHandR) {
+                if (bloodHandL.scale.x < 1.5) {
+                    bloodHandL.scale.addScalar(delta * 0.8);
+                    bloodHandR.scale.addScalar(delta * 0.8);
+                }
+            }
+
+            // [실시간 연출 3] 빙하 이동 및 충돌 감지
+            if (glaciersActive) {
+                let checkHit = false;
+                const targetPos = new THREE.Vector3(0, bearHeight * 0.4, 0); // 북극곰 중심 타겟
+
+                glaciers.forEach(glacier => {
+                    // 북극곰을 향하는 방향 벡터 계산
+                    const dir = new THREE.Vector3().subVectors(targetPos, glacier.position).normalize();
+                    glacier.position.addScaledVector(dir, delta * 8); // 속도: 8
+
+                    // 거리 측정으로 충돌 여부 확인
+                    const dist = glacier.position.distanceTo(targetPos);
+                    if (dist < 0.8) { 
+                        checkHit = true;
+                    }
+                });
+
+                // 빙하가 곰에게 닿은 순간 처리
+                if (checkHit && !glacierHit) {
+                    glacierHit = true;
+                    glaciersActive = false; // 이동 중지
+
+                    // 빙하들 제거
+                    glaciers.forEach(g => scene.remove(g));
+                    glaciers = [];
+
+                    // 충돌했을 때 비로소 점프 작동!
+                    if (jumpAction) {
+                        jumpAction.reset().play();
+                    }
+                }
+            }
+
             renderer.render(scene, camera);
         }
         animate();
