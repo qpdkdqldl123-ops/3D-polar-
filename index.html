@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>점프하는 북극곰 (이벤트 추가)</title>
+    <title>점프하는 북극곰 (입체 3D 피 효과)</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #87CEEB; }
         #jumpBtn {
@@ -68,12 +68,12 @@
         const gridHelper = new THREE.GridHelper(20, 20);
         scene.add(gridHelper);
 
-        // 2. 조명 설정
-        const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 1);
+        // 2. 조명 설정 (빛이 강해야 3D 질감이 잘 살아납니다)
+        const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 1.2);
         hemiLight.position.set(0, 20, 0);
         scene.add(hemiLight);
 
-        const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
         dirLight.position.set(5, 10, 5);
         scene.add(dirLight);
 
@@ -85,7 +85,6 @@
         let bearHeight = 0;
         let bearWidth = 0;
 
-        // ★ 자연스러운 피 효과를 위한 파티클 시스템 변수들
         let bloodDrops = [];
         let isBleedingHead = false;
         let isBleedingHands = false;
@@ -96,43 +95,59 @@
         let handLPos = new THREE.Vector3();
         let handRPos = new THREE.Vector3();
 
-        // 빙하 효과를 위한 변수
         let glaciers = [];
         let glaciersActive = false;
         let glacierHit = false;
 
-        // 피 재질 및 기본 도형 설정 (진한 피 색상)
-        const bloodMat = new THREE.MeshBasicMaterial({ color: 0xb30000 }); 
-        const bloodGeo = new THREE.SphereGeometry(0.05, 8, 8); // 아주 작은 구체 형태의 핏방울
+        // ★ 변경점 1: 반짝이는 3D 입체 재질(Phong) 및 핏빛 색상 디테일화
+        const bloodMat = new THREE.MeshPhongMaterial({ 
+            color: 0x990000,       // 진한 피 색상
+            specular: 0xffffff,    // 반사광 색상 (흰색 하이라이트)
+            shininess: 100         // 반짝임 강도 (높을수록 촉촉하고 매끄러운 3D 느낌)
+        }); 
+        const bloodGeo = new THREE.SphereGeometry(0.06, 16, 16); // 디테일을 높여 더 둥글게
 
-        // 핏방울 개별 스폰 함수
-        function spawnBloodDrop(originPosition) {
+        // ★ 변경점 2: 3D 포물선 수평/수직 분사 로직
+        function spawnBloodDrop(originPosition, forceType) {
             const mesh = new THREE.Mesh(bloodGeo, bloodMat);
-            
-            // 자연스러움을 위해 생성 위치에 아주 미세한 무작위 오차 부여
             mesh.position.copy(originPosition);
-            mesh.position.x += (Math.random() - 0.5) * 0.15;
-            mesh.position.y += (Math.random() - 0.5) * 0.05;
-            mesh.position.z += (Math.random() - 0.5) * 0.15;
+            
+            // 입체감을 위한 랜덤 크기 부여 (0.5배 ~ 1.5배)
+            const randomScale = 0.5 + Math.random() * 1.0;
+            mesh.scale.setScalar(randomScale);
             
             scene.add(mesh);
 
-            // 초기 속도 설정 (좌우전후로 아주 살짝 퍼지면서 기본적으로 아래로 떨어지게 시작)
-            const velocity = new THREE.Vector3(
-                (Math.random() - 0.5) * 0.3,
-                -0.2 - Math.random() * 0.5, 
-                (Math.random() - 0.5) * 0.3
-            );
+            // 3D 공간(원형) 사방으로 퍼지기 위한 각도 계산
+            const angle = Math.random() * Math.PI * 2;
+            const spreadForce = 0.3 + Math.random() * 0.7; // 사방으로 튕겨나가는 힘
+            
+            let velocity = new THREE.Vector3();
 
-            // 배열에 저장하여 실시간으로 위치 추적
+            if (forceType === 'head') {
+                // 머리: 분수처럼 위쪽(+Y) 및 사방(X, Z)으로 뿜어짐
+                velocity.set(
+                    Math.cos(angle) * spreadForce * 0.6,
+                    1.5 + Math.random() * 1.5, // 위로 솟구치는 힘 생성
+                    Math.sin(angle) * spreadForce * 0.6
+                );
+            } else {
+                // 손: 양옆 앞쪽으로 툭툭 튀며 떨어짐
+                velocity.set(
+                    Math.cos(angle) * spreadForce * 1.2,
+                    0.5 + Math.random() * 1.0, 
+                    Math.sin(angle) * spreadForce * 1.2
+                );
+            }
+
             bloodDrops.push({
                 mesh: mesh,
                 velocity: velocity,
-                life: 1.0 // 핏방울의 생명력 수치 (시간이 지나면서 깎임)
+                life: 1.0 
             });
         }
 
-        // 3. FBX 모델 불러오기 및 자동 크기 조절
+        // 3. FBX 모델 불러오기
         const loader = new FBXLoader();
         loader.load('Jump.fbx', function (object) {
             bearObject = object;
@@ -153,12 +168,11 @@
             bearHeight = newBox.max.y - newBox.min.y;
             bearWidth = newBox.max.x - newBox.min.x;
 
-            // 상처 부위 기준 좌표 계산 (머리, 왼손, 오른손)
-            headPos.set(0, bearHeight * 0.85, bearHeight * 0.1);
+            // 상처 좌표 미세 조정
+            headPos.set(0, bearHeight * 0.88, bearHeight * 0.05);
             handLPos.set(-bearWidth * 0.23, bearHeight * 0.38, bearHeight * 0.3);
             handRPos.set(bearWidth * 0.23, bearHeight * 0.38, bearHeight * 0.3);
 
-            // 애니메이션 설정
             mixer = new THREE.AnimationMixer(object);
             if (object.animations && object.animations.length > 0) {
                 jumpAction = mixer.clipAction(object.animations[0]);
@@ -170,7 +184,7 @@
             document.getElementById('jumpBtn').style.display = 'block';
         });
 
-        // 빙하 무리 생성 함수
+        // 빙하 생성 함수
         function spawnGlaciers() {
             glaciers.forEach(g => scene.remove(g));
             glaciers = [];
@@ -196,7 +210,7 @@
             glacierHit = false;
         }
 
-        // 4. 점프 버튼 클릭 이벤트 핸들러
+        // 4. 버튼 클릭 이벤트
         document.getElementById('jumpBtn').addEventListener('click', () => {
             clickCount++;
 
@@ -213,56 +227,57 @@
             }
         });
 
-        // 5. 화면 업데이트 (애니메이션 루프)
+        // 5. 애니메이션 루프
         const clock = new THREE.Clock();
         function animate() {
             requestAnimationFrame(animate);
             const delta = clock.getDelta();
             if (mixer) mixer.update(delta);
 
-            // [실시간 연출 1] 머리 피 뚝뚝 타이머 작동 및 스폰
+            // 머리 피 스폰
             if (isBleedingHead) {
                 headBloodTimer += delta;
-                if (headBloodTimer > 0.04) { // 0.04초 간격으로 연속 스폰
-                    spawnBloodDrop(headPos);
+                if (headBloodTimer > 0.03) { // 스폰 속도 소폭 상향
+                    spawnBloodDrop(headPos, 'head');
                     headBloodTimer = 0;
                 }
             }
 
-            // [실시간 연출 2] 양 손 피 뚝뚝 타이머 작동 및 스폰
+            // 양 손 피 스폰
             if (isBleedingHands) {
                 handBloodTimer += delta;
-                if (handBloodTimer > 0.06) {
-                    spawnBloodDrop(handLPos);
-                    spawnBloodDrop(handRPos);
+                if (handBloodTimer > 0.04) {
+                    spawnBloodDrop(handLPos, 'hands');
+                    spawnBloodDrop(handRPos, 'hands');
                     handBloodTimer = 0;
                 }
             }
 
-            // ★ [핏방울 물리 시뮬레이션 핵심 로직]
+            // 핏방울 물리 연산 (중력 + 3D 공간 이동)
             for (let i = bloodDrops.length - 1; i >= 0; i--) {
                 const drop = bloodDrops[i];
                 
-                // 1. 중력 효과: y축 속도를 매 순간 아래쪽으로 누적 감속
-                drop.velocity.y -= 12 * delta; 
+                // 중력 효과 (Y축 속도를 계속 깎음)
+                drop.velocity.y -= 9.8 * delta; 
                 
-                // 2. 물리 이동: 누적된 속도 벡터 방향으로 메쉬 좌표 이동
+                // 3차원 위치 이동 (X, Y, Z 모두 반영됨)
                 drop.mesh.position.addScaledVector(drop.velocity, delta);
                 
-                // 3. 표면장력/증발 연출: 수명을 줄이고 그에 따라 크기를 작게 만듬
-                drop.life -= delta * 0.8; 
+                // 수명 및 크기 디졸브
+                drop.life -= delta * 0.7; 
                 if (drop.life > 0) {
-                    drop.mesh.scale.setScalar(drop.life); 
+                    // 원래 무작위 크기 대비 실시간 축소 연산
+                    drop.mesh.scale.setScalar(drop.life * (drop.mesh.scale.x / drop.life)); 
                 }
 
-                // 4. 메모리 관리: 바닥(그리드)에 완전히 닿았거나 수명이 다한 방울은 삭제
+                // 소멸 조건 (바닥에 닿거나 수명이 다하면 제거)
                 if (drop.mesh.position.y <= 0.02 || drop.life <= 0) {
                     scene.remove(drop.mesh);
                     bloodDrops.splice(i, 1);
                 }
             }
 
-            // [실시간 연출 3] 빙하 이동 및 충돌 감지
+            // 빙하 이동 및 충돌
             if (glaciersActive) {
                 let checkHit = false;
                 const targetPos = new THREE.Vector3(0, bearHeight * 0.4, 0); 
