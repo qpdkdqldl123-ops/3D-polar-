@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+html_content_v2 = """<!DOCTYPE html>
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
@@ -53,7 +53,7 @@
         .audio-btn:active { transform: scale(0.95); background: rgba(0, 0, 0, 0.8); }
         .start-btn { width: 90%; padding: 20px; font-size: 1.5rem; font-weight: 800; background: var(--quiz-primary); color: white; border: none; border-radius: 15px; cursor: pointer; box-shadow: 0 5px 15px rgba(255, 77, 77, 0.4); }
 
-        /* ⭐️ 퀴즈 페이지: 곰이 다 보이도록 선지 크기 대폭 축소 ⭐️ */
+        /* 퀴즈 페이지: 선지 레이아웃 축소 */
         #page-quiz { justify-content: flex-start; padding-top: 2vh; }
         #question-text { 
             font-size: 1.25rem; font-weight: 900; line-height: 1.3; text-align: center; 
@@ -301,17 +301,15 @@
             audio.play();
         }
 
-        // ⭐️ 기부 페이지로 넘어갈 때 BGM 체인지 ⭐️
         window.goToDonation = function() {
             document.body.className = 'donation-mode';
             document.getElementById('quiz-app').style.display = 'none';
             document.getElementById('donation-app').style.display = 'block';
             window.scrollTo(0,0);
 
-            // 배경음악 중단, 긍정 노래 시작
             document.getElementById('bgm-quiz').pause();
             const bgmDonation = document.getElementById('bgm-donation');
-            bgmDonation.volume = 0.5; // 볼륨 조절 (0.0 ~ 1.0)
+            bgmDonation.volume = 0.5;
             bgmDonation.play().catch(e => console.log('Audio error:', e));
         }
 
@@ -331,16 +329,13 @@
             document.getElementById(pageId).classList.add('active');
         }
 
-        // ⭐️ 퀴즈 시작할 때 배경음악 재생 ⭐️
         function startQuiz() {
             document.getElementById('page-start').style.background = 'transparent';
 
-            // 비명소리 정지
             const scream = document.getElementById('bear-scream');
             scream.pause();
             scream.currentTime = 0;
 
-            // 배경음악 재생
             const bgmQuiz = document.getElementById('bgm-quiz');
             bgmQuiz.volume = 0.5;
             bgmQuiz.play().catch(e => console.log('Audio error:', e));
@@ -355,7 +350,7 @@
             const container = document.getElementById('options-container');
             container.innerHTML = '';
             
-            // 질문 단계에 따른 애니메이션 제어 호출
+            // 질문 단계에 따른 애니메이션 처리 호출
             if (window.updateBearAnimation) {
                 window.updateBearAnimation(currentQ);
             }
@@ -450,13 +445,11 @@
             const box = new THREE.Box3().setFromObject(object);
             const size = box.getSize(new THREE.Vector3());
             
-            // ⭐️ 곰이 화면에 완전히 들어오도록 크기를 약간 줄임
             const scale = 4.2 / Math.max(size.x, size.y, size.z);
             object.scale.set(scale, scale, scale);
             const newBox = new THREE.Box3().setFromObject(object);
             const center = newBox.getCenter(new THREE.Vector3());
             
-            // ⭐️ 곰의 Y축 위치를 대폭 위로 끌어올려서 다리가 완전히 보이게 함 (-2.8 -> -1.5)
             object.position.set(-center.x, -1.5, -center.z); 
 
             scene.add(object);
@@ -473,7 +466,6 @@
             });
         });
 
-        // 애니메이션 부드러운 전환 전용 함수
         window.fadeToAction = function(clip, duration) {
             if(!window.mixer || !clip) return;
             const previousAction = window.currentAction;
@@ -485,20 +477,20 @@
             }
         };
 
-        // ⭐️ 질문 단계별 북극곰 애니메이션 제어 함수 ⭐️
+        // ⭐️ 질문 단계에 따른 애니메이션 흐름 제어 로직 ⭐️
         window.updateBearAnimation = function(currentQ) {
             if(!window.mixer || !window.prayClip) return;
             
             const action = window.mixer.clipAction(window.prayClip);
             if (currentQ < 4) {
-                // 1번째 선지부터 4번째 선지까지 (index 0, 1, 2, 3) -> 계속 반복 재생(LoopRepeat)
+                // 1번째 선지부터 4번째 선지까지 (index 0 ~ 3) -> 계속 무한 반복 재생
                 action.loop = THREE.LoopRepeat;
                 action.clampWhenFinished = false;
                 if (window.currentAction !== action) {
                     window.fadeToAction(window.prayClip, 0.5);
                 }
             } else {
-                // 마지막 선지때 (index 4) -> 1번 재생되고 그 상태에서 정지(LoopOnce + clampWhenFinished)
+                // 마지막 5번째 선지일 때 (index 4) -> 1번 재생 후 마지막 프레임에 고정 정지
                 action.loop = THREE.LoopOnce;
                 action.clampWhenFinished = true;
                 action.reset().play();
@@ -744,3 +736,9 @@
     </script>
 </body>
 </html>
+"""
+
+with open("index-v2.html", "w", encoding="utf-8") as f:
+    f.write(html_content_v2)
+
+print("SUCCESS_V2")
