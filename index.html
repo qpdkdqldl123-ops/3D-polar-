@@ -2,41 +2,144 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>점프하는 북극곰 (입체 3D 피 효과)</title>
-    <style>
-        body { margin: 0; overflow: hidden; background-color: #87CEEB; }
-        #jumpBtn {
-            position: absolute;
-            bottom: 30px;
-            left: 50%;
-            transform: translateX(-50%);
-            padding: 15px 40px;
-            font-size: 24px;
-            font-weight: bold;
-            background-color: #ffaa00;
-            color: white;
-            border: none;
-            border-radius: 10px;
-            cursor: pointer;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-            z-index: 10;
-        }
-        #jumpBtn:active {
-            transform: translateX(-50%) scale(0.95);
-        }
-        #loading {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 24px;
-            font-weight: bold;
-            color: white;
-            font-family: sans-serif;
-            z-index: 5;
-        }
-    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>북극곰 구출 캠페인</title>
     
+    <style>
+        :root {
+            --quiz-primary: #ff4d4d;
+            --quiz-btn-bg: rgba(255, 255, 255, 0.9);
+            --iob-primary: #008ecc;
+            --iob-navy: #1c2d42;
+            --iob-light-bg: #f8f9fa;
+            --iob-border: #e9ecef;
+            --iob-success: #28a745;
+            --iob-warning: #f39c12;
+        }
+
+        body, html { 
+            margin: 0; padding: 0; 
+            width: 100%; height: 100%; 
+            font-family: 'Apple SD Gothic Neo', 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif; 
+            color: #333;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body.quiz-mode { overflow: hidden; background: linear-gradient(180deg, #ffffff 0%, #87CEEB 100%); }
+        body.donation-mode { overflow: auto; background-color: var(--iob-light-bg); }
+
+        /* =========================================
+           [파트 1] 퀴즈 모드 스타일 (Three.js 북극곰)
+           ========================================= */
+        #quiz-app { position: relative; width: 100%; height: 100%; }
+        #canvas-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
+        #ui-container { position: relative; width: 100%; height: 100%; z-index: 10; pointer-events: none; }
+        
+        .page { position: absolute; width: 100%; height: 100%; display: none; flex-direction: column; align-items: center; justify-content: center; box-sizing: border-box; padding: 20px; }
+        .active { display: flex; pointer-events: auto; }
+
+        #loading-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 999; font-size: 1.5rem; font-weight: bold; pointer-events: auto; }
+        .spinner { margin-bottom: 20px; width: 50px; height: 50px; border: 5px solid #fff; border-top-color: var(--quiz-primary); border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+
+        #page-start { background: linear-gradient(180deg, #ffffff 0%, #87CEEB 100%); }
+        .start-image { width: 100%; height: 50vh; object-fit: cover; border-radius: 20px; box-shadow: 0 10px 20px rgba(0,0,0,0.1); margin-bottom: 15px; background-color: #ddd; }
+        
+        .audio-btn {
+            margin-bottom: 20px; padding: 8px 16px; font-size: 0.85rem; font-weight: bold;
+            background: rgba(0, 0, 0, 0.6); color: white; border: 1px solid rgba(255, 255, 255, 0.5);
+            border-radius: 20px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.2); transition: all 0.2s;
+        }
+        .audio-btn:active { transform: scale(0.95); background: rgba(0, 0, 0, 0.8); }
+        .start-btn { width: 90%; padding: 20px; font-size: 1.5rem; font-weight: 800; background: var(--quiz-primary); color: white; border: none; border-radius: 15px; cursor: pointer; box-shadow: 0 5px 15px rgba(255, 77, 77, 0.4); }
+
+        /* ⭐️ 퀴즈 페이지: 곰이 다 보이도록 선지 크기 대폭 축소 ⭐️ */
+        #page-quiz { justify-content: flex-start; padding-top: 2vh; }
+        #question-text { 
+            font-size: 1.25rem; font-weight: 900; line-height: 1.3; text-align: center; 
+            margin-bottom: 10px; word-break: keep-all; background: rgba(255,255,255,0.7); 
+            padding: 10px 15px; border-radius: 15px; 
+        }
+        #question-text u { text-decoration: none; box-shadow: inset 0 -10px 0 rgba(255, 77, 77, 0.3); color: var(--quiz-primary); }
+        .options-container { 
+            width: 100%; display: flex; flex-direction: column; 
+            gap: 6px; max-height: 28vh; overflow-y: auto; 
+        }
+        .option-btn { 
+            width: 100%; padding: 12px; font-size: 0.95rem; font-weight: bold; 
+            background: var(--quiz-btn-bg); border: 2px solid transparent; border-radius: 10px; 
+            cursor: pointer; text-align: left; box-shadow: 0 4px 10px rgba(0,0,0,0.05); 
+        }
+
+        #page-interim { justify-content: flex-start; padding-top: 15vh; }
+        .fatal-btn { font-size: 2.2rem; font-weight: 900; padding: 35px 20px; width: 90%; text-align: center; word-break: keep-all; background: #660000; color: #ffcccc; border: 3px solid #ff0000; border-radius: 20px; cursor: pointer; box-shadow: 0 0 30px rgba(255, 0, 0, 0.8), inset 0 0 20px rgba(255, 0, 0, 0.5); text-shadow: 0 0 10px rgba(255, 0, 0, 1); animation: fatalPulse 0.8s infinite alternate; }
+        @keyframes fatalPulse { 0% { transform: scale(1); box-shadow: 0 0 20px rgba(255,0,0,0.5); } 100% { transform: scale(1.05); box-shadow: 0 0 50px rgba(255,0,0,1); } }
+
+        #page-result { justify-content: flex-start; padding-top: 10vh; }
+        .result-container { display: flex; width: 100%; height: 40vh; align-items: center; justify-content: space-between; background: rgba(255,255,255,0.8); padding: 20px; border-radius: 20px; box-sizing: border-box;}
+        .gauge-section { width: 30%; height: 100%; display: flex; justify-content: center; align-items: flex-end; position: relative; }
+        .gauge-bar { width: 40px; height: 100%; background: rgba(200,200,200,0.5); border-radius: 20px; position: relative; overflow: hidden; border: 2px solid #fff; }
+        .gauge-fill { position: absolute; bottom: 0; left: 0; width: 100%; height: 0%; background: var(--quiz-primary); transition: height 2.5s cubic-bezier(0.1, 0.8, 0.2, 1); }
+        .gauge-pointer { position: absolute; left: 60px; bottom: 0%; background: #000; color: #fff; padding: 8px 12px; border-radius: 10px; font-weight: bold; font-size: 1rem; white-space: nowrap; transition: bottom 2.5s cubic-bezier(0.1, 0.8, 0.2, 1); opacity: 0; }
+        .gauge-pointer::before { content: '◀'; position: absolute; left: -12px; color: #000; }
+        .stats-section { width: 65%; display: flex; flex-direction: column; justify-content: center; text-align: right; }
+        .stats-title { font-size: 1.5rem; font-weight: 800; margin-bottom: 10px; word-break: keep-all; }
+        .bear-count-wrap { font-size: 2rem; font-weight: bold; }
+        #bear-number { font-size: 4.5rem; color: var(--quiz-primary); display: inline-block; transition: transform 0.3s; }
+        
+        .go-donation-btn { margin-top: 30px; padding: 15px 40px; border-radius: 30px; border: none; font-weight: bold; font-size: 1.2rem; background: var(--iob-primary); color: white; cursor: pointer; box-shadow: 0 4px 10px rgba(0,142,204,0.4); animation: pulseBtn 1.5s infinite; }
+        @keyframes pulseBtn { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+
+        /* =========================================
+           [파트 2] 기부 증명 시스템 모드 스타일
+           ========================================= */
+        #donation-app { display: none; width: 100%; min-height: 100vh; }
+        header { background-color: #ffffff; border-bottom: 1px solid var(--iob-border); padding: 15px 20px; display: flex; flex-direction: column; gap: 10px; align-items: center; text-align: center; }
+        header h1 { margin: 0; font-size: 18px; color: var(--iob-navy); font-weight: 700; }
+        .company-tag { font-size: 12px; color: var(--iob-primary); background: #e8f5ff; padding: 4px 12px; border-radius: 20px; font-weight: 600; }
+        .container { max-width: 100%; margin: 20px auto; padding: 0 15px; }
+        .section-title { font-size: 16px; color: var(--iob-navy); margin-bottom: 15px; font-weight: 600; }
+        .table-container { background: #fff; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); overflow-x: auto; margin-bottom: 30px; -webkit-overflow-scrolling: touch; }
+        table { width: 100%; border-collapse: collapse; text-align: left; white-space: nowrap; }
+        th, td { padding: 12px 15px; border-bottom: 1px solid var(--iob-border); font-size: 13px; }
+        th { background-color: #fafafa; color: var(--iob-navy); font-weight: 600; }
+        tr.clickable-row { cursor: pointer; transition: background 0.2s; }
+        tr.clickable-row:active { background-color: #f1f3f5; }
+        .status-badge { padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; display: inline-block; }
+        .status-complete { background-color: #e8f5e9; color: var(--iob-success); }
+        .status-pending { background-color: #fff3cd; color: var(--iob-warning); }
+        .cert-link { color: var(--iob-primary); text-decoration: underline; cursor: pointer; font-weight: bold; }
+        
+        .btn-add { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); width: 60px; height: 60px; background-color: var(--iob-primary); color: white; border-radius: 50%; text-align: center; line-height: 56px; font-size: 32px; cursor: pointer; border: none; box-shadow: 0 6px 20px rgba(0,142,204,0.5); z-index: 100; transition: all 0.2s ease; }
+        .btn-add:active { transform: translateX(-50%) scale(0.95); background-color: #0077b3; }
+
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(28, 45, 66, 0.7); backdrop-filter: blur(4px); justify-content: center; align-items: center; z-index: 1000; padding: 20px; box-sizing: border-box; }
+        .modal-content { background: white; padding: 25px; border-radius: 16px; width: 100%; max-width: 400px; box-shadow: 0 20px 40px rgba(0,0,0,0.15); box-sizing: border-box; max-height: 90vh; overflow-y: auto; }
+        .modal-header { font-size: 18px; font-weight: 700; margin-bottom: 20px; color: var(--iob-navy); border-bottom: 2px solid var(--iob-primary); padding-bottom: 10px; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; font-size: 13px; color: #555; margin-bottom: 8px; font-weight: 600; }
+        .form-group select { width: 100%; padding: 12px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+        .phone-group { display: flex; align-items: center; gap: 10px; }
+        .phone-group input { flex: 1; padding: 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; text-align: center; width: 100%; }
+        .phone-group span { font-weight: bold; color: #666; }
+        
+        .signature-container { border: 1px dashed #b1bbc4; background: #fafafa; border-radius: 6px; position: relative; margin-top: 8px; height: 160px; touch-action: none; }
+        canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
+        .btn-clear { position: absolute; right: 12px; bottom: 12px; background: #6c757d; color: white; border: none; padding: 5px 10px; font-size: 11px; border-radius: 4px; cursor: pointer; }
+        
+        .modal-buttons { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+        .btn { padding: 12px 20px; border-radius: 6px; border: none; cursor: pointer; font-size: 14px; font-weight: 600; flex: 1; }
+        .btn-submit { background-color: var(--iob-primary); color: white; }
+        .btn-cancel { background-color: #e9ecef; color: #495057; }
+        
+        .receipt-img { width: 100%; border-radius: 8px; }
+        .detail-info { text-align: center; margin: 15px 0; font-size: 16px; font-weight: bold; }
+        .detail-sig { width: 100%; border: 1px solid #ddd; border-radius: 8px; background: #fafafa; }
+        
+        footer { text-align: center; padding: 30px 15px; margin-bottom: 80px; }
+        footer p { font-size: 12px; color: #7f8c8d; }
+    </style>
+
     <script type="importmap">
         {
             "imports": {
@@ -46,275 +149,597 @@
         }
     </script>
 </head>
-<body>
-    <div id="loading">북극곰을 부르는 중...</div>
-    <button id="jumpBtn" style="display: none;">JUMP!</button>
+
+<body class="quiz-mode">
+
+    <audio id="bear-scream" src="크게9.mp3"></audio>
+    <audio id="bgm-quiz" src="배경음악.mp3" loop></audio>
+    <audio id="bgm-donation" src="긍정 노래.mp3" loop></audio>
+
+    <div id="quiz-app">
+        <div id="canvas-container"></div>
+
+        <div id="loading-screen">
+            <div class="spinner"></div>
+            <div id="loading-text">북극곰 깨우는 중... (0/3)</div>
+        </div>
+
+        <div id="ui-container">
+            <div id="page-start" class="page active">
+                <img src="첫페이지.jpg" alt="북극곰" class="start-image" onerror="this.src='https://via.placeholder.com/600x800?text=Image'">
+                <button class="audio-btn" onclick="playScream()">🔊 북극곰 비명소리 듣기</button>
+                <button class="start-btn" onclick="startQuiz()">북극곰 구하러 가기</button>
+            </div>
+
+            <div id="page-quiz" class="page">
+                <div id="question-text">질문 텍스트</div>
+                <div class="options-container" id="options-container"></div>
+            </div>
+
+            <div id="page-interim" class="page">
+                <button class="fatal-btn" onclick="showResult()">내가 죽인 북극곰 수는?</button>
+            </div>
+
+            <div id="page-result" class="page">
+                <div class="result-container">
+                    <div class="gauge-section">
+                        <div class="gauge-bar"><div class="gauge-fill" id="gauge-fill"></div></div>
+                        <div class="gauge-pointer" id="gauge-pointer">상위 ?%</div>
+                    </div>
+                    <div class="stats-section">
+                        <div class="stats-title">한 달 동안<br>내가 죽인 북극곰</div>
+                        <div class="bear-count-wrap"><span id="bear-number">0</span> 마리</div>
+                    </div>
+                </div>
+                <button class="go-donation-btn" onclick="goToDonation()">북극곰 살리러 가기</button>
+            </div>
+        </div>
+    </div>
+
+
+    <div id="donation-app">
+        <header>
+            <h1>아이스버그 프로텍트</h1>
+            <div class="company-tag">공식 대리 기부 주관: 아이오비(IOB)</div>
+        </header>
+
+        <div class="container">
+            <div class="section-title">실시간 기부 현황</div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>기부자(번호)</th>
+                            <th>기부 캠페인명</th>
+                            <th>기부 금액</th>
+                            <th>기부 단체</th>
+                            <th>인증번호</th>
+                            <th>상태</th>
+                        </tr>
+                    </thead>
+                    <tbody id="donation-list"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <button class="btn-add" id="open-modal-btn">+</button>
+
+        <div class="modal" id="signature-modal">
+            <div class="modal-content">
+                <div class="modal-header">기부 서명 등록 (모바일 전용)</div>
+                <div class="form-group">
+                    <label>기부 캠페인명</label>
+                    <select id="donation-campaign">
+                        <option value="북극곰 서식지 복원 캠페인">북극곰 서식지 복원 캠페인</option>
+                        <option value="빙하 보존 및 기후변화 대응">빙하 보존 및 기후변화 대응</option>
+                        <option value="북극곰 먹이 공급망 보호">북극곰 먹이 공급망 보호</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>기부 단체</label>
+                    <select id="donation-target">
+                        <option value="유니세프(UNICEF)">유니세프(UNICEF)</option>
+                        <option value="그린피스">그린피스</option>
+                        <option value="WWF">WWF</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>휴대폰 번호</label>
+                    <div class="phone-group">
+                        <input type="text" id="phone-first" value="010" readonly>
+                        <span>-</span>
+                        <input type="tel" id="phone-middle" maxlength="4" placeholder="0000">
+                        <span>-</span>
+                        <input type="tel" id="phone-last" maxlength="4" placeholder="0000">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>서명 (화면 터치로 서명하세요)</label>
+                    <div class="signature-container">
+                        <canvas id="sig-canvas"></canvas>
+                        <button type="button" class="btn-clear" id="sig-clear-btn">지우기</button>
+                    </div>
+                </div>
+                <div class="modal-buttons">
+                    <button class="btn btn-cancel" id="close-modal-btn">닫기</button>
+                    <button class="btn btn-submit" id="submit-btn">저장</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal" id="receipt-modal">
+            <div class="modal-content">
+                <div class="modal-header">기부 영수증</div>
+                <img src="./기부 영수증.png" alt="기부 영수증" class="receipt-img">
+                <div class="modal-buttons">
+                    <button class="btn btn-cancel" id="close-receipt-btn">닫기</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal" id="detail-modal">
+            <div class="modal-content">
+                <div class="modal-header">기부 상세 정보</div>
+                <div class="detail-info" id="detail-phone">010-****-****</div>
+                <img id="detail-sig-img" class="detail-sig" src="" alt="서명 이미지">
+                <div class="modal-buttons">
+                    <button class="btn btn-cancel" id="close-detail-btn">닫기</button>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>아이오비(IOB)는 투명한 기부 문화를 증명합니다.</p>
+        </footer>
+    </div>
+
+
+    <script>
+        function playScream() {
+            const audio = document.getElementById('bear-scream');
+            audio.currentTime = 0; 
+            audio.play();
+        }
+
+        // ⭐️ 기부 페이지로 넘어갈 때 BGM 체인지 ⭐️
+        window.goToDonation = function() {
+            document.body.className = 'donation-mode';
+            document.getElementById('quiz-app').style.display = 'none';
+            document.getElementById('donation-app').style.display = 'block';
+            window.scrollTo(0,0);
+
+            // 배경음악 중단, 긍정 노래 시작
+            document.getElementById('bgm-quiz').pause();
+            const bgmDonation = document.getElementById('bgm-donation');
+            bgmDonation.volume = 0.5; // 볼륨 조절 (0.0 ~ 1.0)
+            bgmDonation.play().catch(e => console.log('Audio error:', e));
+        }
+
+        const questions = [
+            { q: "일주일에 <u>배달 음식</u>을 얼마나 자주 시켜 먹나요?", options: [ { text: "주 4회 이상 (VVIP)", score: 20 }, { text: "주 2~3회 정도", score: 15 }, { text: "월 1~2회 아주 가끔", score: 5 }, { text: "거의 안 먹음 (직접 해먹음)", score: 0 } ] },
+            { q: "카페에서 음료를 마실 때, <u>텀블러</u>를 챙기시나요?", options: [ { text: "귀찮아서 매일 일회용 컵", score: 20 }, { text: "일주일에 절반은 일회용 컵", score: 15 }, { text: "가끔 생각나면 텀블러 지참", score: 5 }, { text: "무조건 개인 텀블러 사용", score: 0 } ] },
+            { q: "유튜브, 인스타, 넷플릭스 등 <u>영상 스트리밍</u> 시간은?", options: [ { text: "눈 떠서 잘 때까지 달고 삼", score: 20 }, { text: "하루 3~4시간 정도 시청", score: 15 }, { text: "하루 1시간 이하 시청", score: 5 }, { text: "영상보단 독서나 다른 활동", score: 0 } ] },
+            { q: "가까운 거리(걸어서 15분 이내)를 갈 때 <u>주로 타는 것</u>은?", options: [ { text: "무조건 택시 부름", score: 20 }, { text: "버스 환승해서 감", score: 10 }, { text: "전동 킥보드나 따릉이", score: 5 }, { text: "이어폰 꽂고 걸어감", score: 0 } ] },
+            { q: "유행이 지났거나 질린 <u>옷을 처리하는 방식</u>은?", options: [ { text: "매달 새 옷 사고 헌 옷은 버림", score: 20 }, { text: "계절마다 한 번씩 SPA 옷 구매", score: 15 }, { text: "당근마켓 등 중고거래 활용", score: 5 }, { text: "있는 옷을 최대한 오래 입음", score: 0 } ] }
+        ];
+
+        let currentQ = 0;
+        let totalScore = 0;
+
+        function goPage(pageId) {
+            document.querySelectorAll('#quiz-app .page').forEach(p => p.classList.remove('active'));
+            document.getElementById(pageId).classList.add('active');
+        }
+
+        // ⭐️ 퀴즈 시작할 때 배경음악 재생 ⭐️
+        function startQuiz() {
+            document.getElementById('page-start').style.background = 'transparent';
+
+            // 비명소리 정지
+            const scream = document.getElementById('bear-scream');
+            scream.pause();
+            scream.currentTime = 0;
+
+            // 배경음악 재생
+            const bgmQuiz = document.getElementById('bgm-quiz');
+            bgmQuiz.volume = 0.5;
+            bgmQuiz.play().catch(e => console.log('Audio error:', e));
+
+            currentQ = 0; totalScore = 0;
+            renderQ();
+            goPage('page-quiz');
+        }
+
+        function renderQ() {
+            document.getElementById('question-text').innerHTML = questions[currentQ].q;
+            const container = document.getElementById('options-container');
+            container.innerHTML = '';
+
+            // ⭐️ 질문 번호에 따라 북극곰 애니메이션 업데이트 상태 제어 ⭐️
+            if (typeof window.updateBearAnimation === 'function') {
+                window.updateBearAnimation(currentQ);
+            }
+
+            questions[currentQ].options.forEach(opt => {
+                const btn = document.createElement('button');
+                btn.className = 'option-btn';
+                btn.innerText = opt.text;
+                btn.onclick = () => {
+                    totalScore += opt.score;
+                    currentQ++;
+                    if (currentQ < questions.length) renderQ();
+                    else triggerDeath(); 
+                };
+                container.appendChild(btn);
+            });
+        }
+
+        function triggerDeath() {
+            goPage('page-interim');
+            window.isDead = true; 
+            if(window.deathClip) window.fadeToAction(window.deathClip, 0.5);
+        }
+
+        function showResult() {
+            goPage('page-result');
+
+            let topPercent = Math.max(1, 100 - totalScore); 
+            let targetBears = Math.floor(totalScore * 0.15); 
+            if(totalScore > 0 && targetBears === 0) targetBears = 1;
+
+            setTimeout(() => {
+                document.getElementById('gauge-fill').style.height = totalScore + '%';
+                const pointer = document.getElementById('gauge-pointer');
+                pointer.style.bottom = `calc(${totalScore}% - 15px)`;
+                pointer.innerText = `상위 ${topPercent}% 살인범`;
+                pointer.style.opacity = 1;
+            }, 300);
+
+            const bearNumEl = document.getElementById('bear-number');
+            let currentBear = 0;
+            
+            if(targetBears === 0) {
+                setTimeout(() => { bearNumEl.style.transform = 'scale(1.5)'; }, 500); return;
+            }
+
+            let intervalTime = 2000 / targetBears; 
+            setTimeout(() => {
+                let counter = setInterval(() => {
+                    currentBear++;
+                    bearNumEl.innerText = currentBear;
+                    if (currentBear >= targetBears) {
+                        clearInterval(counter);
+                        bearNumEl.style.transform = 'scale(1.5)';
+                    }
+                }, intervalTime);
+            }, 500);
+        }
+    </script>
+
 
     <script type="module">
         import * as THREE from 'three';
         import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 
-        // 1. 씬, 카메라, 렌더러 설정
+        window.clip5 = null; window.deathClip = null; window.mixer = null;
+        window.currentAction = null; window.isDead = false;
+
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x87CEEB);
-
         const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 4, 11); 
+        camera.position.set(0, 1.5, 9); 
 
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true }); 
+        renderer.setClearColor(0x000000, 0); 
         renderer.setSize(window.innerWidth, window.innerHeight);
-        document.body.appendChild(renderer.domElement);
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
 
-        const gridHelper = new THREE.GridHelper(20, 20);
-        scene.add(gridHelper);
-
-        // 2. 조명 설정 (빛이 강해야 3D 질감이 잘 살아납니다)
         const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 1.2);
-        hemiLight.position.set(0, 20, 0);
-        scene.add(hemiLight);
+        hemiLight.position.set(0, 20, 0); scene.add(hemiLight);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+        dirLight.position.set(5, 10, 5); scene.add(dirLight);
 
-        const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
-        dirLight.position.set(5, 10, 5);
-        scene.add(dirLight);
+        const manager = new THREE.LoadingManager();
+        manager.onProgress = function ( url, itemsLoaded, itemsTotal ) {
+            document.getElementById('loading-text').innerText = `북극곰 애니메이션 불러오는 중... (${itemsLoaded}/${itemsTotal})`;
+        };
+        manager.onLoad = function ( ) { document.getElementById('loading-screen').style.display = 'none'; };
 
-        // --- 전역 변수 선언 ---
-        let bearObject; 
-        let mixer;
-        let jumpAction;
-        let clickCount = 0; 
-        let bearHeight = 0;
-        let bearWidth = 0;
-
-        let bloodDrops = [];
-        let isBleedingHead = false;
-        let isBleedingHands = false;
-        let headBloodTimer = 0;
-        let handBloodTimer = 0;
-
-        let headPos = new THREE.Vector3();
-        let handLPos = new THREE.Vector3();
-        let handRPos = new THREE.Vector3();
-
-        let glaciers = [];
-        let glaciersActive = false;
-        let glacierHit = false;
-
-        // ★ 변경점 1: 반짝이는 3D 입체 재질(Phong) 및 핏빛 색상 디테일화
-        const bloodMat = new THREE.MeshPhongMaterial({ 
-            color: 0x990000,       // 진한 피 색상
-            specular: 0xffffff,    // 반사광 색상 (흰색 하이라이트)
-            shininess: 100         // 반짝임 강도 (높을수록 촉촉하고 매끄러운 3D 느낌)
-        }); 
-        const bloodGeo = new THREE.SphereGeometry(0.06, 16, 16); // 디테일을 높여 더 둥글게
-
-        // ★ 변경점 2: 3D 포물선 수평/수직 분사 로직
-        function spawnBloodDrop(originPosition, forceType) {
-            const mesh = new THREE.Mesh(bloodGeo, bloodMat);
-            mesh.position.copy(originPosition);
-            
-            // 입체감을 위한 랜덤 크기 부여 (0.5배 ~ 1.5배)
-            const randomScale = 0.5 + Math.random() * 1.0;
-            mesh.scale.setScalar(randomScale);
-            
-            scene.add(mesh);
-
-            // 3D 공간(원형) 사방으로 퍼지기 위한 각도 계산
-            const angle = Math.random() * Math.PI * 2;
-            const spreadForce = 0.3 + Math.random() * 0.7; // 사방으로 튕겨나가는 힘
-            
-            let velocity = new THREE.Vector3();
-
-            if (forceType === 'head') {
-                // 머리: 분수처럼 위쪽(+Y) 및 사방(X, Z)으로 뿜어짐
-                velocity.set(
-                    Math.cos(angle) * spreadForce * 0.6,
-                    1.5 + Math.random() * 1.5, // 위로 솟구치는 힘 생성
-                    Math.sin(angle) * spreadForce * 0.6
-                );
-            } else {
-                // 손: 양옆 앞쪽으로 툭툭 튀며 떨어짐
-                velocity.set(
-                    Math.cos(angle) * spreadForce * 1.2,
-                    0.5 + Math.random() * 1.0, 
-                    Math.sin(angle) * spreadForce * 1.2
-                );
-            }
-
-            bloodDrops.push({
-                mesh: mesh,
-                velocity: velocity,
-                life: 1.0 
-            });
-        }
-
-        // 3. FBX 모델 불러오기
-        const loader = new FBXLoader();
-        loader.load('Jump.fbx', function (object) {
-            bearObject = object;
-            
+        const loader = new FBXLoader(manager);
+        
+        loader.load('자동재생.fbx', function (object) {
             const box = new THREE.Box3().setFromObject(object);
             const size = box.getSize(new THREE.Vector3());
             
-            const maxDim = Math.max(size.x, size.y, size.z);
-            const scale = 4 / maxDim;
+            const scale = 4.2 / Math.max(size.x, size.y, size.z);
             object.scale.set(scale, scale, scale);
-            
             const newBox = new THREE.Box3().setFromObject(object);
             const center = newBox.getCenter(new THREE.Vector3());
-            object.position.set(-center.x, -newBox.min.y, -center.z);
+            
+            object.position.set(-center.x, -1.5, -center.z); 
 
             scene.add(object);
+            window.mixer = new THREE.AnimationMixer(object);
 
-            bearHeight = newBox.max.y - newBox.min.y;
-            bearWidth = newBox.max.x - newBox.min.x;
+            // ⭐️ 기존의 여러 춤 대신 5.fbx 애니메이션 하나만 불러옴 ⭐️
+            loader.load('5.fbx', (animObj) => {
+                if(animObj.animations.length > 0) window.clip5 = animObj.animations[0];
+            });
 
-            // 상처 좌표 미세 조정
-            headPos.set(0, bearHeight * 0.88, bearHeight * 0.05);
-            handLPos.set(-bearWidth * 0.23, bearHeight * 0.38, bearHeight * 0.3);
-            handRPos.set(bearWidth * 0.23, bearHeight * 0.38, bearHeight * 0.3);
-
-            mixer = new THREE.AnimationMixer(object);
-            if (object.animations && object.animations.length > 0) {
-                jumpAction = mixer.clipAction(object.animations[0]);
-                jumpAction.setLoop(THREE.LoopOnce, 1);
-                jumpAction.clampWhenFinished = true;
-            }
-
-            document.getElementById('loading').style.display = 'none';
-            document.getElementById('jumpBtn').style.display = 'block';
+            loader.load('죽음.fbx', (animObj) => {
+                if(animObj.animations.length > 0) window.deathClip = animObj.animations[0];
+            });
         });
 
-        // 빙하 생성 함수
-        function spawnGlaciers() {
-            glaciers.forEach(g => scene.remove(g));
-            glaciers = [];
-
-            const glacierMat = new THREE.MeshStandardMaterial({ color: 0xe0ffff, roughness: 0.2, flatShading: true });
-            const glacierGeo = new THREE.IcosahedronGeometry(0.6, 0); 
-
-            const count = 6; 
-            const radius = 15; 
-
-            for (let i = 0; i < count; i++) {
-                const angle = (i / count) * Math.PI * 2;
-                const glacier = new THREE.Mesh(glacierGeo, glacierMat);
-                
-                glacier.position.x = Math.cos(angle) * radius;
-                glacier.position.z = Math.sin(angle) * radius;
-                glacier.position.y = bearHeight * 0.4; 
-
-                scene.add(glacier);
-                glaciers.push(glacier);
+        window.fadeToAction = function(clip, duration) {
+            if(!window.mixer || !clip) return;
+            const previousAction = window.currentAction;
+            window.currentAction = window.mixer.clipAction(clip);
+            window.currentAction.reset();
+            window.currentAction.play();
+            if (previousAction) {
+                window.currentAction.crossFadeFrom(previousAction, duration, true);
             }
-            glaciersActive = true;
-            glacierHit = false;
-        }
+        };
 
-        // 4. 버튼 클릭 이벤트
-        document.getElementById('jumpBtn').addEventListener('click', () => {
-            clickCount++;
+        // ⭐️ 선지 단계별로 5.fbx 재생 상태를 컨트롤하는 핵심 함수 추가 ⭐️
+        window.updateBearAnimation = function(questionIndex) {
+            if (!window.mixer || !window.clip5) return;
 
-            if (clickCount === 1) {
-                isBleedingHead = true;
-                if (jumpAction) jumpAction.reset().play();
-            } 
-            else if (clickCount === 2) {
-                isBleedingHands = true;
-                if (jumpAction) jumpAction.reset().play();
-            } 
-            else if (clickCount >= 3) {
-                spawnGlaciers();
+            if (window.currentAction) {
+                window.currentAction.stop();
             }
-        });
 
-        // 5. 애니메이션 루프
+            window.currentAction = window.mixer.clipAction(window.clip5);
+            window.currentAction.reset();
+
+            if (questionIndex < 4) {
+                // 1~4번째 선지: 무한 반복 재생 설정
+                window.currentAction.loop = THREE.LoopRepeat;
+                window.currentAction.clampWhenFinished = false;
+            } else {
+                // 마지막 선지: 1번 재생 후 마지막 프레임에서 정지
+                window.currentAction.loop = THREE.LoopOnce;
+                window.currentAction.clampWhenFinished = true;
+            }
+            
+            window.currentAction.play();
+        };
+
         const clock = new THREE.Clock();
         function animate() {
             requestAnimationFrame(animate);
             const delta = clock.getDelta();
-            if (mixer) mixer.update(delta);
-
-            // 머리 피 스폰
-            if (isBleedingHead) {
-                headBloodTimer += delta;
-                if (headBloodTimer > 0.03) { // 스폰 속도 소폭 상향
-                    spawnBloodDrop(headPos, 'head');
-                    headBloodTimer = 0;
-                }
-            }
-
-            // 양 손 피 스폰
-            if (isBleedingHands) {
-                handBloodTimer += delta;
-                if (handBloodTimer > 0.04) {
-                    spawnBloodDrop(handLPos, 'hands');
-                    spawnBloodDrop(handRPos, 'hands');
-                    handBloodTimer = 0;
-                }
-            }
-
-            // 핏방울 물리 연산 (중력 + 3D 공간 이동)
-            for (let i = bloodDrops.length - 1; i >= 0; i--) {
-                const drop = bloodDrops[i];
-                
-                // 중력 효과 (Y축 속도를 계속 깎음)
-                drop.velocity.y -= 9.8 * delta; 
-                
-                // 3차원 위치 이동 (X, Y, Z 모두 반영됨)
-                drop.mesh.position.addScaledVector(drop.velocity, delta);
-                
-                // 수명 및 크기 디졸브
-                drop.life -= delta * 0.7; 
-                if (drop.life > 0) {
-                    // 원래 무작위 크기 대비 실시간 축소 연산
-                    drop.mesh.scale.setScalar(drop.life * (drop.mesh.scale.x / drop.life)); 
-                }
-
-                // 소멸 조건 (바닥에 닿거나 수명이 다하면 제거)
-                if (drop.mesh.position.y <= 0.02 || drop.life <= 0) {
-                    scene.remove(drop.mesh);
-                    bloodDrops.splice(i, 1);
-                }
-            }
-
-            // 빙하 이동 및 충돌
-            if (glaciersActive) {
-                let checkHit = false;
-                const targetPos = new THREE.Vector3(0, bearHeight * 0.4, 0); 
-
-                glaciers.forEach(glacier => {
-                    const dir = new THREE.Vector3().subVectors(targetPos, glacier.position).normalize();
-                    glacier.position.addScaledVector(dir, delta * 8); 
-
-                    const dist = glacier.position.distanceTo(targetPos);
-                    if (dist < 0.8) { 
-                        checkHit = true;
-                    }
-                });
-
-                if (checkHit && !glacierHit) {
-                    glacierHit = true;
-                    glaciersActive = false; 
-
-                    glaciers.forEach(g => scene.remove(g));
-                    glaciers = [];
-
-                    if (jumpAction) {
-                        jumpAction.reset().play();
-                    }
-                }
-            }
-
+            if (window.mixer) window.mixer.update(delta);
             renderer.render(scene, camera);
         }
         animate();
 
-        window.addEventListener('resize', onWindowResize, false);
-        function onWindowResize() {
+        window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyBOh3QTQOeLN99jBLnZxYADP0pTXfwce1I",
+            authDomain: "polarbear-c2798.firebaseapp.com",
+            databaseURL: "https://polarbear-c2798-default-rtdb.firebaseio.com",
+            projectId: "polarbear-c2798",
+            storageBucket: "polarbear-c2798.firebasestorage.app",
+            messagingSenderId: "435093899302",
+            appId: "1:435093899302:web:de2ba81a220ce933c6fee7",
+            measurementId: "G-VMEWKMVR3R"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        const dummyData = [
+            { isDummy: true, name: "김*우", campaign: "북극곰 서식지 복원 캠페인", amount: "₩50,000", target: "유니세프(UNICEF)", certNum: "UNI-2026-0982", status: "기부 완료", timestamp: new Date("2026-06-30T14:22:00").getTime() },
+            { isDummy: true, name: "이*민", campaign: "빙하 보존 및 기후변화 대응", amount: "₩30,000", target: "그린피스", certNum: "GP-2026-4412", status: "기부 완료", timestamp: new Date("2026-06-30T11:05:00").getTime() },
+            { isDummy: true, name: "박*준", campaign: "북극곰 먹이 공급망 보호", amount: "₩100,000", target: "WWF", certNum: "WWF-2026-1104", status: "기부 완료", timestamp: new Date("2026-06-29T18:40:00").getTime() },
+            { isDummy: true, name: "최*서", campaign: "북극 생태계 조사 지원", amount: "₩20,000", target: "유니세프(UNICEF)", certNum: "UNI-2026-0741", status: "기부 완료", timestamp: new Date("2026-06-29T09:15:00").getTime() },
+            { isDummy: true, name: "정*훈", campaign: "빙하 보존 및 기후변화 대응", amount: "₩50,000", target: "그린피스", certNum: "GP-2026-3981", status: "기부 완료", timestamp: new Date("2026-06-28T15:30:00").getTime() },
+            { isDummy: true, name: "한*아", campaign: "북극곰 서식지 복원 캠페인", amount: "₩15,000", target: "WWF", certNum: "WWF-2026-0902", status: "기부 완료", timestamp: new Date("2026-06-28T13:12:00").getTime() },
+            { isDummy: true, name: "윤*영", campaign: "북극곰 서식지 복원 캠페인", amount: "₩200,000", target: "유니세프(UNICEF)", certNum: "UNI-2026-0512", status: "기부 완료", timestamp: new Date("2026-06-27T17:02:00").getTime() },
+            { isDummy: true, name: "조*민", campaign: "북극곰 먹이 공급망 보호", amount: "₩40,000", target: "그린피스", certNum: "GP-2026-1234", status: "기부 완료", timestamp: new Date("2026-06-26T10:20:00").getTime() }
+        ];
+
+        const listTable = document.getElementById('donation-list');
+        const modal = document.getElementById('signature-modal');
+        const receiptModal = document.getElementById('receipt-modal');
+        const detailModal = document.getElementById('detail-modal');
+        
+        const canvas = document.getElementById('sig-canvas');
+        const ctx = canvas.getContext('2d');
+        let isDrawing = false;
+
+        function initCanvas() {
+            canvas.width = canvas.parentElement.clientWidth;
+            canvas.height = canvas.parentElement.clientHeight;
+            ctx.strokeStyle = "#1c2d42";
+            ctx.lineWidth = 3;
+            ctx.lineJoin = "round"; ctx.lineCap = "round";
         }
+
+        function clearCanvas() { ctx.clearRect(0, 0, canvas.width, canvas.height); }
+        document.getElementById('sig-clear-btn').addEventListener('click', clearCanvas);
+
+        function getEventPos(e) {
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            return { x: clientX - rect.left, y: clientY - rect.top };
+        }
+
+        function startDraw(e) {
+            isDrawing = true;
+            const pos = getEventPos(e);
+            ctx.beginPath(); ctx.moveTo(pos.x, pos.y);
+            if(e.cancelable) e.preventDefault();
+        }
+
+        function moveDraw(e) {
+            if (!isDrawing) return;
+            const pos = getEventPos(e);
+            ctx.lineTo(pos.x, pos.y); ctx.stroke();
+            if(e.cancelable) e.preventDefault();
+        }
+
+        function stopDraw() { isDrawing = false; }
+
+        canvas.addEventListener('touchstart', startDraw, {passive: false});
+        canvas.addEventListener('touchmove', moveDraw, {passive: false});
+        canvas.addEventListener('touchend', stopDraw);
+        canvas.addEventListener('mousedown', startDraw);
+        canvas.addEventListener('mousemove', moveDraw);
+        window.addEventListener('mouseup', stopDraw);
+
+        document.getElementById('open-modal-btn').addEventListener('click', () => {
+            modal.style.display = 'flex';
+            setTimeout(initCanvas, 50);
+        });
+
+        document.getElementById('close-modal-btn').addEventListener('click', () => {
+            modal.style.display = 'none';
+            document.getElementById('phone-middle').value = '';
+            document.getElementById('phone-last').value = '';
+            clearCanvas();
+        });
+
+        document.getElementById('close-receipt-btn').addEventListener('click', () => { receiptModal.style.display = 'none'; });
+        document.getElementById('close-detail-btn').addEventListener('click', () => { detailModal.style.display = 'none'; });
+
+        document.getElementById('submit-btn').addEventListener('click', async () => {
+            const campaign = document.getElementById('donation-campaign').value;
+            const target = document.getElementById('donation-target').value;
+            const phoneMid = document.getElementById('phone-middle').value;
+            const phoneLast = document.getElementById('phone-last').value;
+
+            if (phoneMid.length < 4 || phoneLast.length < 4) {
+                alert('휴대폰 번호를 정확히 입력해주세요.');
+                return;
+            }
+
+            const phoneStr = `010-${phoneMid}-${phoneLast}`;
+            const maskedPhone = `010-****-${phoneLast}`;
+            const signatureDataUrl = canvas.toDataURL('image/png');
+
+            try {
+                await addDoc(collection(db, "donations"), {
+                    phone: phoneStr,
+                    maskedName: maskedPhone,
+                    campaign: campaign,
+                    target: target,
+                    amount: "₩" + (Math.floor(Math.random() * 5 + 1) * 10000).toLocaleString(),
+                    certNum: "대기중",
+                    status: "승인대기",
+                    signature: signatureDataUrl,
+                    createdAt: serverTimestamp(),
+                    timestamp: Date.now()
+                });
+
+                modal.style.display = 'none';
+                document.getElementById('phone-middle').value = '';
+                document.getElementById('phone-last').value = '';
+                clearCanvas();
+            } catch (e) {
+                console.error("Error adding document: ", e);
+                alert('저장 중 오류가 발생했습니다.');
+            }
+        });
+
+        function renderTable(firestoreData) {
+            listTable.innerHTML = '';
+            const combined = [...firestoreData, ...dummyData].sort((a, b) => b.timestamp - a.timestamp);
+
+            combined.forEach(data => {
+                const tr = document.createElement('tr');
+                if (!data.isDummy) {
+                    tr.classList.add('clickable-row');
+                    tr.addEventListener('click', () => {
+                        document.getElementById('detail-phone').innerText = data.phone;
+                        document.getElementById('detail-sig-img').src = data.signature;
+                        detailModal.style.display = 'flex';
+                    });
+                }
+
+                let certHtml = data.certNum;
+                if (data.certNum === "UNI-2026-0982") {
+                    certHtml = `<span class="cert-link" data-cert="receipt">UNI-2026-0982</span>`;
+                }
+
+                const statusClass = data.status === "기부 완료" ? "status-complete" : "status-pending";
+
+                tr.innerHTML = `
+                    <td>${data.maskedName || data.name}</td>
+                    <td>${data.campaign}</td>
+                    <td>${data.amount}</td>
+                    <td>${data.target}</td>
+                    <td>${certHtml}</td>
+                    <td><span class="status-badge ${statusClass}">${data.status}</span></td>
+                `;
+                listTable.appendChild(tr);
+            });
+
+            document.querySelectorAll('.cert-link').forEach(link => {
+                link.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    receiptModal.style.display = 'flex';
+                });
+            });
+        }
+
+        const q = query(collection(db, "donations"), orderBy("createdAt", "desc"));
+        onSnapshot(q, (snapshot) => {
+            const realData = [];
+            snapshot.forEach((doc) => {
+                const d = doc.data();
+                realData.push({
+                    ...d,
+                    timestamp: d.createdAt ? d.createdAt.toMillis() : Date.now()
+                });
+            });
+            renderTable(realData);
+        });
+
+        async function checkAndAutoAddDaily() {
+            const metaRef = doc(db, "system", "autoAddMeta");
+            const today = new Date().toDateString();
+
+            try {
+                const metaSnap = await getDoc(metaRef);
+                let lastAddedDate = "";
+                if (metaSnap.exists()) { lastAddedDate = metaSnap.data().lastDate; }
+
+                if (lastAddedDate !== today) {
+                    const randomNames = ["김*민", "이*서", "송*현", "홍*훈", "배*우"];
+                    const randomCamps = ["북극곰 서식지 복원 캠페인", "빙하 보존 및 기후변화 대응", "북극곰 먹이 공급망 보호"];
+                    const randomTargets = ["유니세프(UNICEF)", "그린피스", "WWF"];
+                    
+                    const pName = randomNames[Math.floor(Math.random() * randomNames.length)];
+                    const pCamp = randomCamps[Math.floor(Math.random() * randomCamps.length)];
+                    const pTarget = randomTargets[Math.floor(Math.random() * randomTargets.length)];
+                    const pAmount = "₩" + (Math.floor(Math.random() * 10 + 1) * 10000).toLocaleString();
+                    const pCert = "AUTO-" + Math.floor(Math.random() * 9000 + 1000);
+
+                    await addDoc(collection(db, "donations"), {
+                        phone: "시스템자동추가", maskedName: pName, campaign: pCamp, target: pTarget,
+                        amount: pAmount, certNum: pCert, status: "기부 완료", signature: "", 
+                        createdAt: serverTimestamp(), timestamp: Date.now()
+                    });
+
+                    await setDoc(metaRef, { lastDate: today });
+                }
+            } catch(e) { console.log("Auto-add system error:", e); }
+        }
+        checkAndAutoAddDaily();
     </script>
 </body>
 </html>
