@@ -53,7 +53,7 @@
         .audio-btn:active { transform: scale(0.95); background: rgba(0, 0, 0, 0.8); }
         .start-btn { width: 90%; padding: 20px; font-size: 1.5rem; font-weight: 800; background: var(--quiz-primary); color: white; border: none; border-radius: 15px; cursor: pointer; box-shadow: 0 5px 15px rgba(255, 77, 77, 0.4); }
 
-        /* ⭐️ 퀴즈 페이지: 곰이 다 보이도록 선지 크기 대폭 축소 ⭐️ */
+        /* 퀴즈 페이지: 곰이 다 보이도록 선지 크기 대폭 축소 */
         #page-quiz { justify-content: flex-start; padding-top: 2vh; }
         #question-text { 
             font-size: 1.25rem; font-weight: 900; line-height: 1.3; text-align: center; 
@@ -301,7 +301,7 @@
             audio.play();
         }
 
-        // ⭐️ 기부 페이지로 넘어갈 때 BGM 체인지 ⭐️
+        // 기부 페이지로 넘어갈 때 BGM 체인지
         window.goToDonation = function() {
             document.body.className = 'donation-mode';
             document.getElementById('quiz-app').style.display = 'none';
@@ -331,7 +331,7 @@
             document.getElementById(pageId).classList.add('active');
         }
 
-        // ⭐️ 퀴즈 시작할 때 배경음악 재생 ⭐️
+        // 퀴즈 시작할 때 배경음악 재생
         function startQuiz() {
             document.getElementById('page-start').style.background = 'transparent';
 
@@ -355,7 +355,7 @@
             const container = document.getElementById('options-container');
             container.innerHTML = '';
 
-            // ⭐️ 질문 번호에 따라 북극곰 애니메이션 업데이트 상태 제어 ⭐️
+            // 질문 번호에 따라 북극곰 애니메이션 업데이트 상태 제어
             if (typeof window.updateBearAnimation === 'function') {
                 window.updateBearAnimation(currentQ);
             }
@@ -460,9 +460,18 @@
             scene.add(object);
             window.mixer = new THREE.AnimationMixer(object);
 
-            // ⭐️ 기존의 여러 춤 대신 5.fbx 애니메이션 하나만 불러옴 ⭐️
+            // ⭐️ 기존의 여러 춤 대신 5.fbx 애니메이션 하나만 불러옴 (믹사모 본 이름 정제 포함) ⭐️
             loader.load('5.fbx', (animObj) => {
-                if(animObj.animations.length > 0) window.clip5 = animObj.animations[0];
+                if(animObj.animations.length > 0) {
+                    const clip = animObj.animations[0];
+                    
+                    // 믹사모 애니메이션의 'mixamorig:' 접두사를 지워 베이스 모델 본 이름과 일치시킵니다.
+                    clip.tracks.forEach(track => {
+                        track.name = track.name.replace(/mixamorig:/g, '');
+                    });
+                    
+                    window.clip5 = clip;
+                }
             });
 
             loader.load('죽음.fbx', (animObj) => {
@@ -481,7 +490,7 @@
             }
         };
 
-        // ⭐️ 선지 단계별로 5.fbx 재생 상태를 컨트롤하는 핵심 함수 추가 ⭐️
+        // 선지 단계별로 5.fbx 재생 상태를 컨트롤하는 핵심 함수
         window.updateBearAnimation = function(questionIndex) {
             if (!window.mixer || !window.clip5) return;
 
